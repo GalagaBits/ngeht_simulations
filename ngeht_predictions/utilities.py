@@ -17,6 +17,7 @@ station_code_key = {
     'SM' : 6,
     'SP' : 7,
 }
+#[SM, PV, AZ]
 
 def core_shift_freq_k(nu, R_0, a):
     return a + R_0 * nu ** (-1)
