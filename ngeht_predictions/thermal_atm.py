@@ -122,6 +122,7 @@ class thermal_atm:
         for i,j,k,l in zip(single_table['tele1'], single_table['tele2'], single_table['Baseline Length (m)'], single_table['psi']):
             #print(i, j, station_code_key[i], station_code_key[j])
 
+            
             tau_obs = tau_geo + tau_atm[station_code_key[i]] - tau_atm[station_code_key[j]]
 
             theta_obs = tau_obs * (c / (k * np.cos(l)))
@@ -136,24 +137,52 @@ class thermal_atm:
         theta_obs_array = np.array(theta_obs_list)
         theta_error_array = np.array(theta_error_list)
 
+        self.theta_obs_array = theta_obs_array
+        self.theta_error_array = theta_error_array
+
         theta_obs_mas = radians_to_mas(theta_obs_array)
         theta_obs_error_mas = radians_to_mas(theta_error_array)
         
-        
-        inverse_var_weight(theta_obs_mas, theta_obs_error_mas)
+        # inverse_var_weight(theta_obs_mas, theta_obs_error_mas)
 
         return theta_obs_mas, theta_obs_error_mas
 
-    def calculate_atm_error(self, n_runs=500):
+    def calculate_atm_error(self, n_runs=500, num_ant=8, phase_error=1, freq_GHz=215, num_of_scans=1):
         results_per_scan = []
-        for i in self.table_grouped:
-            single_table = i[1]
-            results = []
-            for i in range(n_runs):
-                    tau_atm = self.generate_rand_atm_delay(8, 1, 215, unit='sec')
-                    theta, theta_err = self.calculate_obs_angles(single_table, 0, tau_atm)
-                    results.append(inverse_var_weight(theta, theta_err))
+        num_of_scans = num_of_scans - 1
 
+        self.list_of_tables_multiple_scans = []
+
+        for i in range(len(self.list_of_tables_perscan) - num_of_scans):
+            # single_table = i[1]
+            list_of_tables_for_combined_scans = []
+
+            results = []
+
+            thetas = []
+            theta_errors = []
+
+            for iter in range(n_runs):
+  
+                for n in range(num_of_scans + 1):
+                    list_of_tables_for_combined_scans.append(self.list_of_tables_perscan[i + n])
+                    
+                    tau_atm = self.generate_rand_atm_delay(num_ant, phase_error, freq_GHz, unit='sec')
+                    theta, theta_err = self.calculate_obs_angles(self.list_of_tables_perscan[i + n], 0, tau_atm) # for loop
+                    
+                    thetas.extend(theta)
+                    theta_errors.extend(theta_err)
+
+                results.append(inverse_var_weight(thetas, theta_errors))
+
+            # print(thetas, len(thetas))
+
+            # try:
+            #     print(thetas.shape, theta_errors.shape)
+            # except:
+            #     print("Error in shape of thetas or theta_errors")
+            
+            self.list_of_tables_multiple_scans.append(pd.concat(list_of_tables_for_combined_scans, ignore_index=True))
             results_per_scan.append(results)
 
         atm_obs_angles = np.array(results_per_scan)

@@ -25,6 +25,14 @@ def core_shift_freq_k(nu, R_0, a):
 def core_shift_freq_k_R(nu, R_0):
     return R_0 * nu ** (-1)
 
+def core_shift_freq_k_1(nu, R_0, a, nu_offset, k):
+    """
+    Returns the core shift in mas for a given frequency in GHz.
+    R_0 is the core shift at 1 GHz in mas.
+    k is the power law index.
+    """
+    return a + R_0 * ((nu - nu_offset) ** (-k))
+
 def time_geometric_delay(mas, mas_error):
     """
     Returns
@@ -91,8 +99,7 @@ def radians_to_mas(radians):
 
 def atm_phase_error(delta_phase, freq_GHz, unit='mas'):
 
-    # Delta phase is given in radians, freq_GHz is the frequency in GHz
-
+    # Delta phase is given in radians, freq_GHz is the frequency in GHz)
     freq_215 = freq_GHz * 1e9
 
     geometric_delay_phase_error = (delta_phase / (2 * np.pi)) * (1 / freq_215)

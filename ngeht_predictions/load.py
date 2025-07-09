@@ -31,6 +31,9 @@ class load:
         u_coords_meters = self.obs.unpack(['u', 'v']).u * EHT_wavelength   # Convert to meters
         v_coords_meters = self.obs.unpack(['u', 'v']).v * EHT_wavelength  # Convert to meters
 
+        self.u_coords = self.obs.unpack(['u', 'v']).u
+        self.v_coords = self.obs.unpack(['u', 'v']).v
+
         baseline_lengths = np.sqrt(u_coords_meters**2 + v_coords_meters**2)
         baseline_angles = np.arctan2(u_coords_meters , v_coords_meters)
 
@@ -52,7 +55,9 @@ class load:
             'tele1' : tele1,
             'tele2' : tele2,
             'Time': times,
-            'psi' : psi
+            'psi' : psi,
+            'u_coords' : self.u_coords,
+            'v_coords' : self.v_coords
         })
 
         # Provide the table to thermal_atm instance so its methods can use it
@@ -78,10 +83,13 @@ class load:
         self.thermal_atm.table_grouped = table_grouped
 
         self.list_of_tables_perscan = []
+        self.thermal_atm.list_of_tables_perscan = []
 
         for i in table_grouped:
             single_table = i[1]
             self.list_of_tables_perscan.append(single_table)
+            
+        self.thermal_atm.list_of_tables_perscan = self.list_of_tables_perscan
         
     def remove_scans_tenna_set(self, tenna_list):
         """
@@ -90,10 +98,13 @@ class load:
         scans_with_tenna_set = []
 
         for i, j in enumerate(self.list_of_tables_perscan):
-            ants_is_scan = set(self.list_of_tables_perscan[i]['tele1']).union(set(self.list_of_tables_perscan[i]['tele2']))
-            if ants_is_scan == set(tenna_list):
+            #ants_is_scan = set(self.list_of_tables_perscan[i]['tele1']).union(set(self.list_of_tables_perscan[i]['tele2']))
+            set_tenna_current = set(np.unique(np.hstack((np.unique(self.list_of_tables_perscan[i]['tele1']), np.unique(self.list_of_tables_perscan[i]['tele2'])))))
+
+            if set_tenna_current == set(tenna_list):
                 scans_with_tenna_set.append(j)
 
         self.list_of_tables_perscan = scans_with_tenna_set
+        self.thermal_atm.list_of_tables_perscan = self.list_of_tables_perscan
         self.table_grouped = pd.concat(scans_with_tenna_set).groupby('Time')
         self.thermal_atm.table_grouped = self.table_grouped
