@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import ehtim as eh
 import pandas as pd
 from .utilities import *
@@ -117,16 +116,23 @@ class thermal_atm:
         theta_obs_list = []
         theta_error_list = []
 
+        theta_source_list = []
+        theta_source_error_list = []
+
         tau_geo = 0.0 # Geometric delay in seconds, assuming no geometric delay for simplicity
 
-        for i,j,k,l in zip(single_table['tele1'], single_table['tele2'], single_table['Baseline Length (m)'], single_table['psi']):
+        for i,j,k,l,p in zip(single_table['tele1'], single_table['tele2'], single_table['Baseline Length (m)'], single_table['psi'], single_table['phase_seconds']):
             #print(i, j, station_code_key[i], station_code_key[j])
-
             
             tau_obs = tau_geo + tau_atm[station_code_key[i]] - tau_atm[station_code_key[j]]
 
+            tau_source = p
+
             theta_obs = tau_obs * (c / (k * np.cos(l)))
             theta_error = (1/(k * np.cos(l)))
+
+            theta_source = tau_source * (c / (k * np.cos(l)))
+            theta_source_error = (1/(k * np.cos(l)))
 
             # print(i, j, k, l)
             # print(tau_obs, theta_obs, theta_error)
@@ -134,36 +140,65 @@ class thermal_atm:
             theta_obs_list.append(theta_obs)
             theta_error_list.append(theta_error)
 
+            theta_source_list.append(theta_source)
+            theta_source_error_list.append(theta_source_error)
+
         theta_obs_array = np.array(theta_obs_list)
         theta_error_array = np.array(theta_error_list)
+
+        theta_source_array = np.array(theta_source_list)
+        theta_source_error_array = np.array(theta_source_error_list)
 
         self.theta_obs_array = theta_obs_array
         self.theta_error_array = theta_error_array
 
+        self.theta_source_array = theta_source_array
+        self.theta_source_error_array = theta_source_error_array
+
         theta_obs_mas = radians_to_mas(theta_obs_array)
         theta_obs_error_mas = radians_to_mas(theta_error_array)
-        
+
+        theta_source_mas = radians_to_mas(theta_source_array)
+        theta_source_error_mas = radians_to_mas(theta_source_error_array)
+
+        self.theta_obs_mas = theta_obs_mas
+        self.theta_obs_error_mas = theta_obs_error_mas  
+
+        self.theta_source_mas = theta_source_mas
+        self.theta_source_error_mas = theta_source_error_mas
+
+
         # inverse_var_weight(theta_obs_mas, theta_obs_error_mas)
 
         return theta_obs_mas, theta_obs_error_mas
 
     def calculate_atm_error(self, n_runs=500, num_ant=8, phase_error=1, freq_GHz=215, num_of_scans=1):
         results_per_scan = []
+        results_source_per_scan = []
+
         num_of_scans = num_of_scans - 1
 
         self.list_of_tables_multiple_scans = []
+
 
         for i in range(len(self.list_of_tables_perscan) - num_of_scans):
             # single_table = i[1]
             list_of_tables_for_combined_scans = []
 
             results = []
+            results_source = []
 
-            thetas = []
-            theta_errors = []
+            # thetas = []
+            # theta_errors = []
 
             for iter in range(n_runs):
-  
+
+                thetas = []
+                theta_errors = []
+
+                thetas_source = []
+                theta_errors_source = []
+
                 for n in range(num_of_scans + 1):
                     list_of_tables_for_combined_scans.append(self.list_of_tables_perscan[i + n])
                     
@@ -173,7 +208,11 @@ class thermal_atm:
                     thetas.extend(theta)
                     theta_errors.extend(theta_err)
 
-                results.append(inverse_var_weight(thetas, theta_errors))
+                    thetas_source.extend(self.theta_source_mas)
+                    theta_errors_source.extend(self.theta_source_error_mas)
+
+                results.append(inverse_var_weight(np.array(thetas), np.array(theta_errors)))
+                results_source.append(inverse_var_weight(np.array(thetas_source), np.array(theta_errors_source)))
 
             # print(thetas, len(thetas))
 
@@ -184,8 +223,11 @@ class thermal_atm:
             
             self.list_of_tables_multiple_scans.append(pd.concat(list_of_tables_for_combined_scans, ignore_index=True))
             results_per_scan.append(results)
+            results_source_per_scan.append(results_source)
 
         atm_obs_angles = np.array(results_per_scan)
+
         self.atm_obs_angles = atm_obs_angles
+        self.source_obs_angles = np.array(results_source_per_scan)
 
 thermal_atm_instance = thermal_atm()

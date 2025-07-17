@@ -42,6 +42,13 @@ class load:
         tele1 = self.obs.unpack(['t1']).astype('str')
         tele2 = self.obs.unpack(['t2']).astype('str')
 
+        phase = self.obs.unpack(['phase']).astype(np.float64)
+
+        # Convert phase in degrees to radians
+        phase = phase * (2*np.pi / 360)
+
+        source_structure_delay = (phase/(2*np.pi)) * (1/(230 * 1e9))
+
         times = self.obs.unpack(['time'])['time']
 
         self.jet_angle = np.pi / 4
@@ -57,7 +64,10 @@ class load:
             'Time': times,
             'psi' : psi,
             'u_coords' : self.u_coords,
-            'v_coords' : self.v_coords
+            'v_coords' : self.v_coords,
+            'phase': phase,
+            'phase_seconds': source_structure_delay,
+            
         })
 
         # Provide the table to thermal_atm instance so its methods can use it
