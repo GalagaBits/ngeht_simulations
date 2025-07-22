@@ -73,6 +73,26 @@ class load:
         # Provide the table to thermal_atm instance so its methods can use it
         self.thermal_atm.table = self.table
 
+
+    def add_columns_random_thermal_atm_delay(self,number_of_scans=5, phase_error=0.55, freq=215):
+        for i in range(number_of_scans):
+            tau_str_tenna1 = 'tau1_scan_' + str(i+1)
+            tau_str_tenna2 = 'tau2_scan_' + str(i+1)
+            tau = self.thermal_atm.generate_rand_atm_delay(8, phase_error, freq)
+            tenna1_tau = []
+            tenna2_tau = []
+            for ant1, ant2 in zip(self.table['tele1'], self.table['tele2']):
+                tenna1_tau.append(tau[station_code_key[ant1]])
+                tenna2_tau.append(tau[station_code_key[ant2]])
+
+            self.table[tau_str_tenna1] = tenna1_tau
+            self.table[tau_str_tenna2] = tenna2_tau
+
+            self.table['delta_tau_scan_' + str(i+1)] = self.table[tau_str_tenna1] - self.table[tau_str_tenna2]
+    
+        self.thermal_atm.table = self.table
+
+
     def select_antennas(self, tenna_list):
 
         self.table = self.table[self.table['tele1'].isin(tenna_list) & self.table['tele2'].isin(tenna_list)]
@@ -118,3 +138,11 @@ class load:
         self.thermal_atm.list_of_tables_perscan = self.list_of_tables_perscan
         self.table_grouped = pd.concat(scans_with_tenna_set).groupby('Time')
         self.thermal_atm.table_grouped = self.table_grouped
+
+
+    # def add_random_antenna_based_delay_columns(self, tau_atm_1, tau_atm_2):
+    #     """
+    #     Add random antenna-based delay columns to the table.
+    #     """
+
+    #     self.thermal_atm.table = self.table
