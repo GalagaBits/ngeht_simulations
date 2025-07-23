@@ -74,29 +74,32 @@ class load:
         self.thermal_atm.table = self.table
 
 
-    def add_columns_random_thermal_atm_delay(self,number_of_scans=5, phase_error=0.55, freq=215):
-        for i in range(number_of_scans):
-            tau_str_tenna1 = 'tau1_scan_' + str(i+1)
-            tau_str_tenna2 = 'tau2_scan_' + str(i+1)
-            tau = self.thermal_atm.generate_rand_atm_delay(8, phase_error, freq)
-            tenna1_tau = []
-            tenna2_tau = []
-            for ant1, ant2 in zip(self.table['tele1'], self.table['tele2']):
-                tenna1_tau.append(tau[station_code_key[ant1]])
-                tenna2_tau.append(tau[station_code_key[ant2]])
+    # def add_columns_random_thermal_atm_delay(self,number_of_scans=5, phase_error=0.55, freq=215):
+    #     for i in range(number_of_scans):
+    #         tau_str_tenna1 = 'tau1_scan_' + str(i+1)
+    #         tau_str_tenna2 = 'tau2_scan_' + str(i+1)
+    #         tau = self.thermal_atm.generate_rand_atm_delay(8, phase_error, freq)
+    #         tenna1_tau = []
+    #         tenna2_tau = []
+    #         for ant1, ant2 in zip(self.table['tele1'], self.table['tele2']):
+    #             tenna1_tau.append(tau[station_code_key[ant1]])
+    #             tenna2_tau.append(tau[station_code_key[ant2]])
 
-            self.table[tau_str_tenna1] = tenna1_tau
-            self.table[tau_str_tenna2] = tenna2_tau
+    #         self.table[tau_str_tenna1] = tenna1_tau
+    #         self.table[tau_str_tenna2] = tenna2_tau
 
-            self.table['delta_tau_scan_' + str(i+1)] = self.table[tau_str_tenna1] - self.table[tau_str_tenna2]
+    #         self.table['delta_tau_scan_' + str(i+1)] = self.table[tau_str_tenna1] - self.table[tau_str_tenna2]
+
+    #         self.table['antenna_based_phase_' + str(i+1)] = self.table['delta_tau_scan_' + str(i+1)] * (2 * np.pi * freq * 1e9)
     
-        self.thermal_atm.table = self.table
+    #     self.thermal_atm.table = self.table
 
 
     def select_antennas(self, tenna_list):
 
         self.table = self.table[self.table['tele1'].isin(tenna_list) & self.table['tele2'].isin(tenna_list)]
-        
+        self.table_map = self.table['tele1'].isin(tenna_list) & self.table['tele2'].isin(tenna_list)
+
         if self.table.empty:
             print("No data available for the selected antennas.")
     

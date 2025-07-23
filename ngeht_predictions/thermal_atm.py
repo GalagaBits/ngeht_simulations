@@ -2,6 +2,7 @@ import numpy as np
 import ehtim as eh
 import pandas as pd
 from sklearn.linear_model import LinearRegression
+from tqdm import tqdm
 
 from .utilities import *
 
@@ -269,30 +270,75 @@ class thermal_atm:
 
         return radians_to_mas(reg.coef_)
     
+    def add_columns_random_thermal_atm_delay(self,table, phase_error=0.55, freq=215):
+
+        tau_str_tenna1 = 'tau1'
+        tau_str_tenna2 = 'tau2' 
+
+        tau = self.generate_rand_atm_delay(8, phase_error, freq)
+
+
+
+        # tau = [-4.05815724e-14, -4.27734685e-13, -5.47889548e-14, -3.00830424e-13, 2.43248783e-13,  7.90734579e-14,  5.59333173e-14,  9.85634750e-14]
+
+        tenna1_tau = []
+        tenna2_tau = []
+
+        for ant1, ant2 in zip(table['tele1'], table['tele2']):
+            tenna1_tau.append(tau[station_code_key[ant1]])
+            tenna2_tau.append(tau[station_code_key[ant2]])
+
+        table[tau_str_tenna1] = tenna1_tau
+        table[tau_str_tenna2] = tenna2_tau
+
+        # table['delta_tau_scan_' + str(j+1)] = table[tau_str_tenna1] - table[tau_str_tenna2]
+
+        # table['antenna_based_phase_' + str(j+1)] = table['delta_tau_scan_' + str(j+1)] * (2 * np.pi * freq * 1e9)
+
+        return table
+    
     def calculate_antenna_based_delay_2D(self, n_runs=500, num_ant=8, phase_error=1, freq_GHz=215, num_of_scans=1):
 
         num_of_scans = num_of_scans - 1
 
-        results_per_run = []
-        for iter in range(n_runs):
-            results_per_scan = []
-            for i in range(len(self.list_of_tables_perscan) - num_of_scans):
-                tables = []
+        results = [] 
+
+        for i in range(len(self.list_of_tables_perscan) - num_of_scans):
+            results_per_run = []
+
+            for _ in range(n_runs):
+
+                u_list = []
+                v_list = []
+                tau1_list = []
+                tau2_list = []
+
                 for n in range(num_of_scans + 1):
 
-                    tables.append(self.list_of_tables_perscan[i + n])
+                    df = self.add_columns_random_thermal_atm_delay(self.list_of_tables_perscan[i + n], phase_error=phase_error, freq=freq_GHz)
+                    u_list.append(df['u_coords'].to_numpy())
+                    v_list.append(df['v_coords'].to_numpy())
+                    tau1_list.append(df['tau1'].to_numpy())
+                    tau2_list.append(df['tau2'].to_numpy())
 
-                concat_table = pd.concat(tables, ignore_index=True)
+                u_all = np.concatenate(u_list)
+                v_all = np.concatenate(v_list)
+                phase_all = (np.concatenate(tau1_list) - np.concatenate(tau2_list)) * (2 * np.pi * freq_GHz * 1e9)  # Convert seconds to radians
 
-                tau_atm = self.generate_rand_atm_delay(num_ant, phase_error, freq_GHz, unit='sec')
-                theta = self.calculate_antenna_based_delay_obs_angles_2D(concat_table, tau_atm) # for loop
+                X = 2 * np.pi * np.column_stack((u_all, v_all))
 
-                results_per_scan.append(theta)
+                print(X.shape, phase_all.shape)
 
-            results_per_run.append(results_per_scan)
-            
+                reg = LinearRegression().fit(X, phase_all)
+                theta = radians_to_mas(reg.coef_)
+                results_per_run.append(theta)
 
-        self.antenna_based_delay_results = np.array(results_per_run)
+            results.append(results_per_run)
+
+        self.antenna_based_delay_results = np.array(results)
+        self.antenna_based_delay_results = self.antenna_based_delay_results[0]
+
+        #self.antenna_based_delay_results = np.array(results_per_run)
 
     def calculate_source_structure_delay_2D(self, num_of_scans=1):
 
