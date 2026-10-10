@@ -1,6 +1,7 @@
 import numpy as np
 import ehtim as eh
 import pandas as pd
+from tqdm import tqdm
 
 from .utilities import *
 from .thermal_atm import thermal_atm
@@ -141,6 +142,52 @@ class load:
         self.thermal_atm.list_of_tables_perscan = self.list_of_tables_perscan
         self.table_grouped = pd.concat(scans_with_tenna_set).groupby('Time')
         self.thermal_atm.table_grouped = self.table_grouped
+
+
+    def run_time_delay_simulations(self, tenna_list, n_runs=500, num_ant=8, phase_error=0.55, freq_GHz=215, num_of_scans=1):
+        """
+        Run the antenna-based delay simulations
+        """
+
+        self.load_uvfits()
+        self.select_antennas(tenna_list=tenna_list)
+        self.grouped_table_time()
+        self.remove_scans_tenna_set(tenna_list=tenna_list)
+        
+        results_per_scan_antenna_based_delay = []
+        results_per_scan_source_structure_delay = []
+        results_per_scan_thermal_noise_delay = []
+
+        params_per_scan_antenna_based_delay = []
+        params_per_scan_source_structure_delay = []
+        params_per_scan_thermal_noise_delay = []
+
+
+        for scan in tqdm(np.arange(num_of_scans) + 1, desc="Running time delay simulations"):
+            self.thermal_atm.calculate_antenna_based_delay_2D(n_runs=n_runs, num_ant=num_ant, phase_error=phase_error, freq_GHz=freq_GHz, num_of_scans=scan)
+            self.thermal_atm.calculate_source_structure_delay_2D(num_of_scans=scan)
+            self.thermal_atm.calculate_thermal_noise_delay_2D(num_of_scans=scan, n_runs=n_runs)
+
+            results_per_scan_antenna_based_delay.append(self.thermal_atm.antenna_based_delay_results)
+            results_per_scan_source_structure_delay.append(self.thermal_atm.source_structure_delay_results)
+            results_per_scan_thermal_noise_delay.append(self.thermal_atm.thermal_noise_delay_results)
+
+            params_per_scan_antenna_based_delay.append(self.thermal_atm.antenna_based_delay_fitting_params)
+            params_per_scan_source_structure_delay.append(self.thermal_atm.source_structure_fitting_params)
+            params_per_scan_thermal_noise_delay.append(self.thermal_atm.thermal_fitting_params)
+
+        self.antenna_based_delay_perscan_results = results_per_scan_antenna_based_delay
+        self.source_structure_delay_perscan_results = results_per_scan_source_structure_delay
+        self.thermal_noise_delay_perscan_results = results_per_scan_thermal_noise_delay
+
+        self.antenna_based_delay_fitting_params = params_per_scan_antenna_based_delay
+        self.source_structure_fitting_params = params_per_scan_source_structure_delay
+        self.thermal_fitting_params = params_per_scan_thermal_noise_delay
+
+        self.antenna_based_delay_allscan_results = np.vstack(results_per_scan_antenna_based_delay)
+        self.source_structure_delay_allscan_results = np.vstack(results_per_scan_source_structure_delay)
+        self.thermal_noise_delay_allscan_results = np.vstack(results_per_scan_thermal_noise_delay)
+
 
 
     # def add_random_antenna_based_delay_columns(self, tau_atm_1, tau_atm_2):

@@ -44,10 +44,8 @@ class thermal_atm:
 
         delta_theta = 0.5 * (wavelength_hi / baseline) * snr
 
-        delta_theta_mas =  delta_theta * (3600 * 180) / np.pi * 1000
+        return delta_theta
 
-        return delta_theta_mas
-    
     def calculate_thermal_error(self, freq1, freq2, params):
 
         self.values_coreshifts = []
@@ -104,6 +102,7 @@ class thermal_atm:
     ##########
 
     def generate_rand_atm_delay(self, num_ant, delta_phase, freq_GHz, unit='sec'):
+        # Generate random atmospheric delay for each antenna based on the given phase error and frequency
         tau_atm = []
         
         geometric_delay_phase_error_mas = atm_phase_error(delta_phase, freq_GHz, unit=unit)
@@ -261,7 +260,7 @@ class thermal_atm:
         u = single_table['u_coords']
         v = single_table['v_coords']
         
-        antenna_based_delay_phase = single_table['phase'] # Convert seconds to radians
+        antenna_based_delay_phase = single_table['phase']
 
         print(u.shape, v.shape, antenna_based_delay_phase.shape)
         print(antenna_based_delay_phase)
@@ -276,8 +275,6 @@ class thermal_atm:
         tau_str_tenna2 = 'tau2' 
 
         tau = self.generate_rand_atm_delay(8, phase_error, freq)
-
-
 
         # tau = [-4.05815724e-14, -4.27734685e-13, -5.47889548e-14, -3.00830424e-13, 2.43248783e-13,  7.90734579e-14,  5.59333173e-14,  9.85634750e-14]
 
@@ -303,8 +300,12 @@ class thermal_atm:
 
         results = [] 
 
+        fitting_params = []
+
         for i in range(len(self.list_of_tables_perscan) - num_of_scans):
+
             results_per_run = []
+            fitting_params_per_run = []
 
             for _ in range(n_runs):
 
@@ -325,18 +326,21 @@ class thermal_atm:
                 v_all = np.concatenate(v_list)
                 phase_all = (np.concatenate(tau1_list) - np.concatenate(tau2_list)) * (2 * np.pi * freq_GHz * 1e9)  # Convert seconds to radians
 
+                fitting_params_per_run.append(np.vstack([u_all, v_all, phase_all]))
+
                 X = 2 * np.pi * np.column_stack((u_all, v_all))
 
-                print(X.shape, phase_all.shape)
+                # print(X.shape, phase_all.shape)
 
-                reg = LinearRegression().fit(X, phase_all)
+                reg = LinearRegression(fit_intercept=False).fit(X, phase_all)
                 theta = radians_to_mas(reg.coef_)
                 results_per_run.append(theta)
 
             results.append(results_per_run)
+            fitting_params.append(fitting_params_per_run)
 
         self.antenna_based_delay_results = np.array(results)
-        self.antenna_based_delay_results = self.antenna_based_delay_results[0]
+        self.antenna_based_delay_fitting_params = np.array(fitting_params)
 
         #self.antenna_based_delay_results = np.array(results_per_run)
 
@@ -346,16 +350,84 @@ class thermal_atm:
 
         num_of_scans = num_of_scans - 1
 
-        for i in range(len(self.list_of_tables_perscan) - num_of_scans):
-            tables = []
-            for n in range(num_of_scans + 1):
-                tables.append(self.list_of_tables_perscan[i + n])
-                
-            concat_table = pd.concat(tables, ignore_index=True)
+        fitting_params = []
 
-            theta = self.calculate_source_structure_delay_obs_angles_2D(concat_table) # for loop
+        for i in range(len(self.list_of_tables_perscan) - num_of_scans):
+
+            u_list = []
+            v_list = []
+            phase = []            
+
+            for n in range(num_of_scans + 1):
+
+                df = self.list_of_tables_perscan[i + n]
+
+                u_list.append(df['u_coords'].to_numpy())
+                v_list.append(df['v_coords'].to_numpy())
+                phase.append(df['phase'].to_numpy())
+
+            u_all = np.concatenate(u_list)
+            v_all = np.concatenate(v_list)
+            phase_all = np.concatenate(phase)
+
+            fitting_params.append(np.vstack([u_all, v_all, phase_all]))
+
+            X = 2 * np.pi * np.column_stack((u_all, v_all))
+
+            reg = LinearRegression(fit_intercept=False).fit(X, phase_all)
+            theta = radians_to_mas(reg.coef_)
             results_per_scan.append(theta)
 
+        self.source_structure_fitting_params = np.array(fitting_params)
         self.source_structure_delay_results = np.array(results_per_scan)
+
+
+    def calculate_thermal_noise_delay_2D(self, num_of_scans=1, freq1=86, freq2=215, n_runs=100):
+
+        n_term = freq2 / freq1
+
+        results = []
+        num_of_scans = num_of_scans - 1
+
+        fitting_params = []
+        for i in range(len(self.list_of_tables_perscan) - num_of_scans):
+            
+            results_per_run = []
+            fitting_params_per_run = []
+            for _ in range(n_runs):
+
+                u_list = []
+                v_list = []
+                phase_list = []
+
+                for n in range(num_of_scans + 1):
+                    df = self.list_of_tables_perscan[i + n]
+
+                    u_list.append(df['u_coords'].to_numpy())
+                    v_list.append(df['v_coords'].to_numpy())
+
+                    sigma_phase = (1/df['SNR'].to_numpy()) + (n_term/(df['SNR'].to_numpy()))
+
+                    phase = np.random.normal(0, sigma_phase)
+
+                    phase_list.append(phase)
+
+                u_all = np.concatenate(u_list)
+                v_all = np.concatenate(v_list)
+                phase_all = np.concatenate(phase_list)
+
+                fitting_params_per_run.append(np.vstack([u_all, v_all, phase_all]))
+
+                X = 2 * np.pi * np.column_stack((u_all, v_all))
+
+                res = LinearRegression(fit_intercept=False).fit(X, phase_all)
+                theta = radians_to_mas(res.coef_)
+                results_per_run.append(theta)
+
+            results.append(results_per_run)
+            fitting_params.append(fitting_params_per_run)
+        
+        self.thermal_fitting_params = np.array(fitting_params)
+        self.thermal_noise_delay_results = np.array(results)
 
 thermal_atm_instance = thermal_atm()

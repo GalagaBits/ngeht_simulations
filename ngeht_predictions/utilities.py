@@ -142,3 +142,12 @@ def inverse_var_weight(theta_obs, theta_obs_err):
     denom = np.sum(1/theta_obs_err**2)
 
     return num / denom
+
+def rms(array): # Root mean square
+    return np.sqrt(np.mean(np.square(array)))
+
+def rms_distance(array):
+
+    rms_x = rms(array[...,0])
+    rms_y = rms(array[...,1])
+    return np.sqrt(rms_x**2 + rms_y**2)
